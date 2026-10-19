@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+        laravel: ['12', '13']
+        include:
+          - laravel: '12'
+            testbench: '^10.0'
+            pest: '^4.0'
+          - laravel: '13'
+            testbench: '^11.0'
+            pest: '^5.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, dom, xml, curl, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+      - name: Select development dependencies
+        run: >-
+          composer require --dev --no-update --no-interaction
+          "orchestra/testbench:${{ matrix.testbench }}"
+          "pestphp/pest:${{ matrix.pest }}"
+          "pestphp/pest-plugin-laravel:${{ matrix.pest }}"
+      - run: composer update --prefer-dist --no-interaction --no-progress
+      - run: composer validate --strict
+      - run: composer check
